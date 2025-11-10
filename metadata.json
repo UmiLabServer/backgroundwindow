@@ -1,0 +1,8 @@
+{
+  "name": "Background Window",
+  "description": "Make window to background",
+  "uuid": "backgroundwindow@stron.umilab.net",
+  "shell-version": [
+    "49"
+  ]
+}
