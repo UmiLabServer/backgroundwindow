@@ -4,5 +4,6 @@
   "uuid": "backgroundwindow@stron.umilab.net",
   "shell-version": [
     "49"
-  ]
+  ],
+  "settings-schema": "org.gnome.shell.extensions.backgroundwindow"
 }

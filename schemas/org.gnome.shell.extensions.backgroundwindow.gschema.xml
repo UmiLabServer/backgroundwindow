@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.backgroundwindow" path="/org/gnome/shell/extensions/backgroundwindow/">
+    <key name="toggle-background-window" type="as">
+      <default>["&lt;Control&gt;&lt;Alt&gt;b"]</default>
+      <summary>Toggle background window</summary>
+      <description>Shortcut to toggle background window mode</description>
+    </key>
+  </schema>
+</schemalist>
