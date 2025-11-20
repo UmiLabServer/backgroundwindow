@@ -1,0 +1,10 @@
+[Pipeline]
+name=GNOME Shell Extension (devkit)
+
+[Stage-build]
+name=Build Extension
+build-commands=ninja -C _build install
+
+[Stage-run]
+name=Run in devkit
+run-commands=MESON_INSTALL_PREFIX=_build/meson-private/install.dat _build/meson-private/../run-devkit.sh
