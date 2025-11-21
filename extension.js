@@ -50,11 +50,13 @@ export default class BackgroundWindowExtension extends Extension {
                             this._backgroundWindows.delete(focusedWindow);
                             focusedWindow.unmake_above();
                             focusedWindow.raise();
+                            focusedWindow.set_skip_taskbar(false);
                             this._label.text = `Restored: ${wmClass}`;
                         } else {
                             this._backgroundWindows.add(focusedWindow);
                             focusedWindow.stick();
                             focusedWindow.lower();
+                            focusedWindow.set_skip_taskbar(true);
                             
                             const windows = global.display.get_tab_list(Meta.TabList.NORMAL, null);
                             for (const win of windows) {
@@ -128,6 +130,7 @@ export default class BackgroundWindowExtension extends Extension {
             Main.wm.removeKeybinding('toggle-background-window');
             for (const window of this._backgroundWindows) {
                 try {
+                    window.set_skip_taskbar(false);
                     window.unstick();
                     window.raise();
                 } catch (e) {
