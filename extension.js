@@ -50,13 +50,11 @@ export default class BackgroundWindowExtension extends Extension {
                             this._backgroundWindows.delete(focusedWindow);
                             focusedWindow.unmake_above();
                             focusedWindow.raise();
-                            focusedWindow.set_skip_taskbar(false);
                             this._label.text = `Restored: ${wmClass}`;
                         } else {
                             this._backgroundWindows.add(focusedWindow);
                             focusedWindow.stick();
                             focusedWindow.lower();
-                            focusedWindow.set_skip_taskbar(true);
                             
                             const windows = global.display.get_tab_list(Meta.TabList.NORMAL, null);
                             for (const win of windows) {
@@ -85,6 +83,10 @@ export default class BackgroundWindowExtension extends Extension {
             this._sourceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
                 const currentFocus = global.display.get_focus_window();
                 
+                if (Main.overview.visible) {
+                    return GLib.SOURCE_CONTINUE;
+                }
+                
                 if (currentFocus && !this._backgroundWindows.has(currentFocus)) {
                     this._lastFocusedWindow = currentFocus;
                 }
@@ -93,11 +95,24 @@ export default class BackgroundWindowExtension extends Extension {
                     try {
                         if (global.display.get_focus_window() === window) {
                             if (this._lastFocusedWindow && this._lastFocusedWindow !== window) {
-                                this._lastFocusedWindow.activate(global.get_current_time());
+                                const lastWorkspace = this._lastFocusedWindow.get_workspace();
+                                const currentWorkspace = global.workspace_manager.get_active_workspace();
+                                if (lastWorkspace === currentWorkspace) {
+                                    this._lastFocusedWindow.activate(global.get_current_time());
+                                } else {
+                                    const windows = global.display.get_tab_list(Meta.TabList.NORMAL, null);
+                                    for (const win of windows) {
+                                        if (!this._backgroundWindows.has(win) && win.get_workspace() === currentWorkspace) {
+                                            win.activate(global.get_current_time());
+                                            break;
+                                        }
+                                    }
+                                }
                             } else {
+                                const currentWorkspace = global.workspace_manager.get_active_workspace();
                                 const windows = global.display.get_tab_list(Meta.TabList.NORMAL, null);
                                 for (const win of windows) {
-                                    if (!this._backgroundWindows.has(win)) {
+                                    if (!this._backgroundWindows.has(win) && win.get_workspace() === currentWorkspace) {
                                         win.activate(global.get_current_time());
                                         break;
                                     }
@@ -130,7 +145,6 @@ export default class BackgroundWindowExtension extends Extension {
             Main.wm.removeKeybinding('toggle-background-window');
             for (const window of this._backgroundWindows) {
                 try {
-                    window.set_skip_taskbar(false);
                     window.unstick();
                     window.raise();
                 } catch (e) {
