@@ -13,6 +13,7 @@ export default class BackgroundWindowExtension extends Extension {
         this._label = null;
         this._sourceId = 0;
         this._seconds = 0;
+        this._backgroundWindows = new Set()
     }
 
     enable() {
@@ -34,7 +35,6 @@ export default class BackgroundWindowExtension extends Extension {
             this._actor.add_child(this._label);
             Main.layoutManager.addChrome(this._actor);
 
-            // キーバインディングを一度だけ追加
             Main.wm.addKeybinding(
                 'toggle-background-window',
                 this.getSettings(),
@@ -43,20 +43,49 @@ export default class BackgroundWindowExtension extends Extension {
                 () => {
                     const focusedWindow = global.display.get_focus_window();
                     if (focusedWindow && this._label) {
-                        this._label.text = `Selected window: ${focusedWindow.get_wm_class()}`;
+                        const wmClass = focusedWindow.get_wm_class();
+
+                        if (this._backgroundWindows.has(focusedWindow)) {
+                            this._backgroundWindows.delete(focusedWindow);
+                            focusedWindow.set_layer(Meta.StackLayer.NORMAL);
+
+                            const windowActor = focusedWindow.get_compositor_private();
+                            if (windowActor) {
+                                windowActor.set_reactive(true);
+                            }
+
+                            focusedWindow.set_input_region(null);
+                            focusedWindow.unmake_above();
+                            focusedWindow.raise();
+                            this._label.text = `Restored: ${wmClass}`;
+                        } else {
+                            this._backgroundWindows.add(focusedWindow);
+                            focusedWindow.stick();
+                            focusedWindow.set_layer(Meta.StackLayer.DESKTOP);
+                            focusedWindow.lower();
+                            focusedWindow.minimize();
+                            focusedWindow.unminimize();
+
+                            const windowActor = focusedWindow.get_compositor_private();
+                            if (windowActor) {
+                                windowActor.set_reactive(false);
+                                windowActor.opacity = 255;
+                                const rect = new Meta.Rectangle({ x: 0, y: 0, width: 0, height: 0 });
+                                focusedWindow.set_input_region(rect);
+                            }
+
+                            this._label.text = `Background: ${wmClass}`;
+                        }
                     }
                 }
             );
 
-            this._sourceId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
-                this._seconds += 1;
-                if (this._label) {
-                    const windows = global.display.get_tab_list(Meta.TabList.NORMAL, null);
-                    const window_list = []
-                    windows.forEach(window => {
-                        window_list.push(window.get_wm_class());
-                    });
-                    this._label.text = `ウィンドウ: ${window_list.join(", ")}`
+            this._sourceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
+                for (const window of this._backgroundWindows) {
+                    try {
+                        window.lower();
+                    } catch (e) {
+                    }
                 }
                 return GLib.SOURCE_CONTINUE;
             });
@@ -68,8 +97,23 @@ export default class BackgroundWindowExtension extends Extension {
 
     disable() {
         try {
-            // キーバインディングを削除
             Main.wm.removeKeybinding('toggle-background-window');
+            for (const window of this._backgroundWindows) {
+                try {
+                    window.set_layer(Meta.StackLayer.NORMAL);
+                    
+                    const windowActor = window.get_compositor_private();
+                    if (windowActor) {
+                        windowActor.set_reactive(true);
+                    }
+                    window.set_input_region(null);
+
+                    window.unstick();
+                    window.raise();
+                } catch (e) {
+                }
+            }
+            this._backgroundWindows.clear();
 
             if (this._sourceId) {
                 GLib.source_remove(this._sourceId);
