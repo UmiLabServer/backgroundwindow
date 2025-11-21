@@ -9,33 +9,13 @@ import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 export default class BackgroundWindowExtension extends Extension {
     constructor(metadata) {
         super(metadata);
-        this._actor = null;
-        this._label = null;
         this._sourceId = 0;
-        this._seconds = 0;
         this._backgroundWindows = new Set();
         this._lastFocusedWindow = null;
     }
 
     enable() {
         try {
-            this._seconds = 0;
-            this._actor = new St.BoxLayout({
-                style_class: "backgroundwindow-demo",
-                vertical: true,
-                reactive: false,
-            });
-
-            this._actor.set_position(24, 24);
-
-            this._label = new St.Label({
-                text: "BackgroundWindow ready",
-                reactive: false,
-            });
-
-            this._actor.add_child(this._label);
-            Main.layoutManager.addChrome(this._actor);
-
             Main.wm.addKeybinding(
                 'toggle-background-window',
                 this.getSettings(),
@@ -43,14 +23,13 @@ export default class BackgroundWindowExtension extends Extension {
                 Shell.ActionMode.NORMAL,
                 () => {
                     const focusedWindow = global.display.get_focus_window();
-                    if (focusedWindow && this._label) {
+                    if (focusedWindow) {
                         const wmClass = focusedWindow.get_wm_class();
 
                         if (this._backgroundWindows.has(focusedWindow)) {
                             this._backgroundWindows.delete(focusedWindow);
                             focusedWindow.unmake_above();
                             focusedWindow.raise();
-                            this._label.text = `Restored: ${wmClass}`;
                         } else {
                             this._backgroundWindows.add(focusedWindow);
                             focusedWindow.stick();
@@ -73,8 +52,6 @@ export default class BackgroundWindowExtension extends Extension {
                                     parent.set_child_above_sibling(windowActor, backgroundGroup);
                                 }
                             }
-
-                            this._label.text = `Background: ${wmClass}`;
                         }
                     }
                 }
@@ -157,15 +134,6 @@ export default class BackgroundWindowExtension extends Extension {
                 GLib.source_remove(this._sourceId);
                 this._sourceId = 0;
             }
-
-            if (this._actor) {
-                Main.layoutManager.removeChrome(this._actor);
-                this._actor.destroy();
-                this._actor = null;
-            }
-
-            this._label = null;
-            this._seconds = 0;
 
         } catch (error) {
         }
