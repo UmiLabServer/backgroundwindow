@@ -13,7 +13,8 @@ export default class BackgroundWindowExtension extends Extension {
         this._label = null;
         this._sourceId = 0;
         this._seconds = 0;
-        this._backgroundWindows = new Set()
+        this._backgroundWindows = new Set();
+        this._lastFocusedWindow = null;
     }
 
     enable() {
@@ -47,31 +48,30 @@ export default class BackgroundWindowExtension extends Extension {
 
                         if (this._backgroundWindows.has(focusedWindow)) {
                             this._backgroundWindows.delete(focusedWindow);
-                            focusedWindow.set_layer(Meta.StackLayer.NORMAL);
-
-                            const windowActor = focusedWindow.get_compositor_private();
-                            if (windowActor) {
-                                windowActor.set_reactive(true);
-                            }
-
-                            focusedWindow.set_input_region(null);
                             focusedWindow.unmake_above();
                             focusedWindow.raise();
                             this._label.text = `Restored: ${wmClass}`;
                         } else {
                             this._backgroundWindows.add(focusedWindow);
                             focusedWindow.stick();
-                            focusedWindow.set_layer(Meta.StackLayer.DESKTOP);
                             focusedWindow.lower();
-                            focusedWindow.minimize();
-                            focusedWindow.unminimize();
-
+                            
+                            const windows = global.display.get_tab_list(Meta.TabList.NORMAL, null);
+                            for (const win of windows) {
+                                if (!this._backgroundWindows.has(win)) {
+                                    win.activate(global.get_current_time());
+                                    this._lastFocusedWindow = win;
+                                    break;
+                                }
+                            }
+                            
                             const windowActor = focusedWindow.get_compositor_private();
                             if (windowActor) {
-                                windowActor.set_reactive(false);
-                                windowActor.opacity = 255;
-                                const rect = new Meta.Rectangle({ x: 0, y: 0, width: 0, height: 0 });
-                                focusedWindow.set_input_region(rect);
+                                const parent = windowActor.get_parent();
+                                const backgroundGroup = Main.layoutManager._backgroundGroup;
+                                if (parent && backgroundGroup) {
+                                    parent.set_child_above_sibling(windowActor, backgroundGroup);
+                                }
                             }
 
                             this._label.text = `Background: ${wmClass}`;
@@ -80,10 +80,38 @@ export default class BackgroundWindowExtension extends Extension {
                 }
             );
 
-            this._sourceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
+            this._sourceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+                const currentFocus = global.display.get_focus_window();
+                
+                if (currentFocus && !this._backgroundWindows.has(currentFocus)) {
+                    this._lastFocusedWindow = currentFocus;
+                }
+                
                 for (const window of this._backgroundWindows) {
                     try {
+                        if (global.display.get_focus_window() === window) {
+                            if (this._lastFocusedWindow && this._lastFocusedWindow !== window) {
+                                this._lastFocusedWindow.activate(global.get_current_time());
+                            } else {
+                                const windows = global.display.get_tab_list(Meta.TabList.NORMAL, null);
+                                for (const win of windows) {
+                                    if (!this._backgroundWindows.has(win)) {
+                                        win.activate(global.get_current_time());
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        
                         window.lower();
+                        const windowActor = window.get_compositor_private();
+                        if (windowActor) {
+                            const parent = windowActor.get_parent();
+                            const backgroundGroup = Main.layoutManager._backgroundGroup;
+                            if (parent && backgroundGroup) {
+                                parent.set_child_above_sibling(windowActor, backgroundGroup);
+                            }
+                        }
                     } catch (e) {
                     }
                 }
@@ -100,20 +128,13 @@ export default class BackgroundWindowExtension extends Extension {
             Main.wm.removeKeybinding('toggle-background-window');
             for (const window of this._backgroundWindows) {
                 try {
-                    window.set_layer(Meta.StackLayer.NORMAL);
-                    
-                    const windowActor = window.get_compositor_private();
-                    if (windowActor) {
-                        windowActor.set_reactive(true);
-                    }
-                    window.set_input_region(null);
-
                     window.unstick();
                     window.raise();
                 } catch (e) {
                 }
             }
             this._backgroundWindows.clear();
+            this._lastFocusedWindow = null;
 
             if (this._sourceId) {
                 GLib.source_remove(this._sourceId);
